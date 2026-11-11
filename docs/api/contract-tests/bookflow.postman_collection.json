@@ -1,0 +1,2641 @@
+{
+  "info": {
+    "_postman_id": "2ed08a50-efaa-5baa-aa84-153865e2a030",
+    "name": "BookFlow · Pruebas de contrato v1",
+    "description": "Propuesta de pruebas de contrato de BookFlow API v1. Esquemas de respuesta extraídos de docs/api/openapi.yaml. Requiere la API levantada con un juego de datos de prueba con 2 negocios activos (Peluquería Demo y Barbería Otra), 1 negocio suspendido y usuarios por rol; los ids se configuran en las variables de la colección. Contraseña de los usuarios de prueba: Demo1234!. Ejecutar en orden: npx newman run docs/api/contract-tests/bookflow.postman_collection.json",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get(\"fecha_prueba\")) { const d = new Date(); d.setDate(d.getDate() + 2); while (d.getDay() !== 2) d.setDate(d.getDate() + 1); pm.collectionVariables.set(\"fecha_prueba\", d.toISOString().slice(0, 10)); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Sistema",
+      "description": "",
+      "item": [
+        {
+          "name": "Health → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/salud",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "salud"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-01 · Registro de negocio",
+      "description": "",
+      "item": [
+        {
+          "name": "Registro válido → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/negocios/registro",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios",
+                "registro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_negocio\": \"Peluquería Contrato\",\n  \"nombre_propietario\": \"Pruebas QA\",\n  \"email\": \"qa+{{$timestamp}}@bookflow.test\",\n  \"telefono\": \"+34 600 999 999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Negocio\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Negocio\"))));",
+                  "pm.test(\"Genera tenant_id y slug\", () => { const t = pm.response.json().data; pm.expect(t.id).to.match(/^[0-9a-f-]{36}$/); pm.expect(t.slug).to.match(/^[a-z0-9-]+$/); }); pm.test(\"Location\", () => pm.response.to.have.header(\"Location\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email duplicado → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/negocios/registro",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios",
+                "registro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_negocio\": \"Otra\",\n  \"nombre_propietario\": \"X Y\",\n  \"email\": \"admin@demo.test\",\n  \"telefono\": \"+34 600 999 998\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error EMAIL_YA_REGISTRADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"EMAIL_YA_REGISTRADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Campos vacíos → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/negocios/registro",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios",
+                "registro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_negocio\": \"\",\n  \"email\": \"no-es-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Error\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Error\"))));",
+                  "pm.test(\"Error ERROR_VALIDACION con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"ERROR_VALIDACION\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });",
+                  "pm.test(\"Lista todos los campos erróneos\", () => pm.expect(pm.response.json().details.length).to.be.at.least(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Campo no permitido (password) → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/negocios/registro",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios",
+                "registro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_negocio\": \"Neg\",\n  \"nombre_propietario\": \"X Y\",\n  \"email\": \"x{{$timestamp}}@bookflow.test\",\n  \"telefono\": \"+34 600 111 111\",\n  \"contrasena\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error ERROR_VALIDACION con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"ERROR_VALIDACION\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-02 · Login por roles",
+      "description": "",
+      "item": [
+        {
+          "name": "Login admin → 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@demo.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema TokensSesion\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_TokensSesion\"))));",
+                  "pm.collectionVariables.set(\"token_admin\", pm.response.json().data.token_acceso); pm.test(\"Rol correcto\", () => pm.expect(pm.response.json().data.usuario.rol).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login worker → 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"worker@demo.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema TokensSesion\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_TokensSesion\"))));",
+                  "pm.collectionVariables.set(\"token_worker\", pm.response.json().data.token_acceso); pm.test(\"Rol correcto\", () => pm.expect(pm.response.json().data.usuario.rol).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login superadmin → 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@bookflow.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema TokensSesion\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_TokensSesion\"))));",
+                  "pm.collectionVariables.set(\"token_superadmin\", pm.response.json().data.token_acceso); pm.test(\"Rol correcto\", () => pm.expect(pm.response.json().data.usuario.rol).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login admin_b → 200",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@otra.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema TokensSesion\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_TokensSesion\"))));",
+                  "pm.collectionVariables.set(\"token_admin_b\", pm.response.json().data.token_acceso); pm.test(\"Rol correcto\", () => pm.expect(pm.response.json().data.usuario.rol).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contraseña incorrecta → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@demo.test\",\n  \"contrasena\": \"mala\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error CREDENCIALES_INVALIDAS con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"CREDENCIALES_INVALIDAS\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email inexistente → 401 (mismo código)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nadie@demo.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error CREDENCIALES_INVALIDAS con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"CREDENCIALES_INVALIDAS\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Negocio suspendido → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/iniciar-sesion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "iniciar-sesion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@suspendido.test\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NEGOCIO_SUSPENDIDO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NEGOCIO_SUSPENDIDO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/auth/me sin token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/usuario-actual",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "usuario-actual"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NO_AUTENTICADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NO_AUTENTICADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/auth/me admin → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/usuario-actual",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "usuario-actual"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Usuario\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Usuario\"))));",
+                  "pm.test(\"tenant y rol del token\", () => { const u = pm.response.json().data; pm.expect(u.rol).to.eql(\"admin_negocio\"); pm.expect(u.tenant_id).to.eql(pm.collectionVariables.get(\"tenant_a_id\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SuperAdmin lista negocios → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/negocios?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_superadmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Paginado\", () => { const m = pm.response.json().meta; pm.expect(m).to.include.keys(\"total\",\"page\",\"limit\",\"total_pages\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BusinessAdmin lista negocios → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/negocios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "negocios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error PROHIBIDO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"PROHIBIDO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-03 · Catálogo de servicios",
+      "description": "",
+      "item": [
+        {
+          "name": "Crear servicio → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Lavado {{$timestamp}}\",\n  \"precio\": 8.5,\n  \"duracion_minutos\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Servicio\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Servicio\"))));",
+                  "pm.collectionVariables.set(\"servicio_nuevo_id\", pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Nombre duplicado → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Corte de pelo\",\n  \"precio\": 10,\n  \"duracion_minutos\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NOMBRE_SERVICIO_DUPLICADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NOMBRE_SERVICIO_DUPLICADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Precio negativo y duración 0 → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Malo\",\n  \"precio\": -1,\n  \"duracion_minutos\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error ERROR_VALIDACION con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"ERROR_VALIDACION\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });",
+                  "pm.test(\"details por campo\", () => { const f = pm.response.json().details.map(d => d.field); pm.expect(f).to.include.members([\"precio\",\"duracion_minutos\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trabajador no puede crear → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"X\",\n  \"precio\": 1,\n  \"duracion_minutos\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_worker}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error PROHIBIDO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"PROHIBIDO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar paginado → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/servicios?page=1&limit=2&orden=nombre",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "2"
+                },
+                {
+                  "key": "orden",
+                  "value": "nombre"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema ServicioLista\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_ServicioLista\"))));",
+                  "pm.test(\"limit respetado\", () => pm.expect(pm.response.json().data.length).to.be.at.most(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar servicio → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/servicios/{{servicio_nuevo_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios",
+                "{{servicio_nuevo_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 9.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Servicio\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Servicio\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aislamiento: servicio de otro negocio → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/servicios/{{servicio_b_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios",
+                "{{servicio_b_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NO_ENCONTRADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NO_ENCONTRADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar servicio sin citas → 204",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/servicios/{{servicio_nuevo_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "servicios",
+                "{{servicio_nuevo_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-04 · Personal del local",
+      "description": "",
+      "item": [
+        {
+          "name": "Alta trabajador con servicios → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trabajadores",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trabajadores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_visible\": \"Marta\",\n  \"telefono\": \"+34 622 000 000\",\n  \"servicio_ids\": [\n    \"{{servicio_a_id}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Trabajador\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Trabajador\"))));",
+                  "pm.collectionVariables.set(\"trabajador_nuevo_id\", pm.response.json().data.id); pm.test(\"Servicio asignado\", () => pm.expect(pm.response.json().data.servicios.map(s => s.id)).to.include(pm.collectionVariables.get(\"servicio_a_id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Asignar servicio de otro negocio → 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trabajadores/{{trabajador_nuevo_id}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trabajadores",
+                "{{trabajador_nuevo_id}}",
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_ids\": [\n    \"{{servicio_b_id}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error ERROR_VALIDACION con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"ERROR_VALIDACION\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reemplazar servicios → 200",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trabajadores/{{trabajador_nuevo_id}}/servicios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trabajadores",
+                "{{trabajador_nuevo_id}}",
+                "servicios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_ids\": [\n    \"{{servicio_a_id}}\",\n    \"{{servicio_a2_id}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Trabajador\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Trabajador\"))));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-05 · Horario y pausas",
+      "description": "",
+      "item": [
+        {
+          "name": "Horario del local → 200",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/horario-local",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "horario-local"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"franjas\": [\n    {\n      \"dia_semana\": 1,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 1,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    },\n    {\n      \"dia_semana\": 2,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 2,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    },\n    {\n      \"dia_semana\": 3,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 3,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    },\n    {\n      \"dia_semana\": 4,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 4,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    },\n    {\n      \"dia_semana\": 5,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 5,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    },\n    {\n      \"dia_semana\": 6,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 6,\n      \"hora_inicio\": \"16:00\",\n      \"hora_fin\": \"20:00\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema FranjasSemanales\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_FranjasSemanales\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Franjas solapadas → 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/horario-local",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "horario-local"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"franjas\": [\n    {\n      \"dia_semana\": 1,\n      \"hora_inicio\": \"09:00\",\n      \"hora_fin\": \"14:00\"\n    },\n    {\n      \"dia_semana\": 1,\n      \"hora_inicio\": \"13:00\",\n      \"hora_fin\": \"15:00\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error HORARIO_SOLAPADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"HORARIO_SOLAPADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fin antes que inicio → 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trabajadores/{{trabajador_nuevo_id}}/turnos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trabajadores",
+                "{{trabajador_nuevo_id}}",
+                "turnos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"franjas\": [\n    {\n      \"dia_semana\": 2,\n      \"hora_inicio\": \"14:00\",\n      \"hora_fin\": \"09:00\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error ERROR_VALIDACION con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"ERROR_VALIDACION\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bloqueo pausa comida 1 día → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bloqueos-horario",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bloqueos-horario"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trabajador_id\": \"{{trabajador_a_id}}\",\n  \"tipo\": \"pausa\",\n  \"fecha_inicio\": \"{{fecha_prueba}}T13:00:00+01:00\",\n  \"fecha_fin\": \"{{fecha_prueba}}T14:00:00+01:00\",\n  \"motivo\": \"Comida\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = new Date(); d.setDate(d.getDate() + 2); while (d.getDay() !== 2) d.setDate(d.getDate() + 1); pm.collectionVariables.set(\"fecha_prueba\", d.toISOString().slice(0, 10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.collectionVariables.set(\"bloqueo_id\", pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-06 · Huecos libres",
+      "description": "",
+      "item": [
+        {
+          "name": "Disponibilidad trabajador → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/disponibilidad?servicio_id={{servicio_a_id}}&fecha={{fecha_prueba}}&trabajador_id={{trabajador_a_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "disponibilidad"
+              ],
+              "query": [
+                {
+                  "key": "servicio_id",
+                  "value": "{{servicio_a_id}}"
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha_prueba}}"
+                },
+                {
+                  "key": "trabajador_id",
+                  "value": "{{trabajador_a_id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Disponibilidad\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Disponibilidad\"))));",
+                  "const s = pm.response.json().data.franjas; pm.test(\"Hay huecos\", () => pm.expect(s.length).to.be.above(1)); pm.test(\"Respeta bloqueo 13:00-14:00\", () => s.forEach(x => pm.expect(x.fecha_inicio).to.not.match(/T13:/))); pm.test(\"Duración del servicio\", () => s.forEach(x => pm.expect(new Date(x.fecha_fin) - new Date(x.fecha_inicio)).to.eql(30*60000))); pm.test(\"Tiempo < 300 ms (RNF-03)\", () => pm.expect(pm.response.responseTime).to.be.below(300)); pm.collectionVariables.set(\"hueco1\", s[0].fecha_inicio); pm.collectionVariables.set(\"hueco2\", s[1].fecha_inicio);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Opción 'Cualquiera' → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/disponibilidad?servicio_id={{servicio_a_id}}&fecha={{fecha_prueba}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "disponibilidad"
+              ],
+              "query": [
+                {
+                  "key": "servicio_id",
+                  "value": "{{servicio_a_id}}"
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha_prueba}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Disponibilidad\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Disponibilidad\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fecha pasada → 422",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/disponibilidad?servicio_id={{servicio_a_id}}&fecha=2020-01-01",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "disponibilidad"
+              ],
+              "query": [
+                {
+                  "key": "servicio_id",
+                  "value": "{{servicio_a_id}}"
+                },
+                {
+                  "key": "fecha",
+                  "value": "2020-01-01"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error RESERVA_EN_PASADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"RESERVA_EN_PASADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Slug inexistente → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/no-existe/disponibilidad?servicio_id={{servicio_a_id}}&fecha={{fecha_prueba}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "no-existe",
+                "disponibilidad"
+              ],
+              "query": [
+                {
+                  "key": "servicio_id",
+                  "value": "{{servicio_a_id}}"
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha_prueba}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NO_ENCONTRADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NO_ENCONTRADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-07 · Reserva",
+      "description": "",
+      "item": [
+        {
+          "name": "Reservar hueco 1 → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/citas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "citas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_id\": \"{{servicio_a_id}}\",\n  \"trabajador_id\": \"{{trabajador_a_id}}\",\n  \"fecha_inicio\": \"{{hueco1}}\",\n  \"cliente\": {\n    \"nombre_completo\": \"Laura Pérez\",\n    \"telefono\": \"+34 611 222 333\",\n    \"email\": \"laura@cliente.test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema ConfirmacionCita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_ConfirmacionCita\"))));",
+                  "const a = pm.response.json().data; pm.collectionVariables.set(\"cita1_id\", a.id); pm.collectionVariables.set(\"cita1_token\", a.token_cancelacion); pm.test(\"Estado pendiente y precio congelado\", () => { pm.expect(a.estado).to.eql(\"pendiente\"); pm.expect(a.precio).to.eql(15); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mismo hueco otra vez → 409 (sin doble reserva)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/citas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "citas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_id\": \"{{servicio_a_id}}\",\n  \"trabajador_id\": \"{{trabajador_a_id}}\",\n  \"fecha_inicio\": \"{{hueco1}}\",\n  \"cliente\": {\n    \"nombre_completo\": \"Pedro Gil\",\n    \"telefono\": \"+34 699 888 777\",\n    \"email\": \"pedro@cliente.test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error HUECO_NO_DISPONIBLE con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"HUECO_NO_DISPONIBLE\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fuera de horario (03:00) → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/citas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "citas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_id\": \"{{servicio_a_id}}\",\n  \"trabajador_id\": \"{{trabajador_a_id}}\",\n  \"fecha_inicio\": \"{{fecha_prueba}}T03:00:00+01:00\",\n  \"cliente\": {\n    \"nombre_completo\": \"Pedro Gil\",\n    \"telefono\": \"+34 699 888 777\",\n    \"email\": \"pedro@cliente.test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error FUERA_DE_HORARIO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"FUERA_DE_HORARIO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reservar hueco 2 → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/citas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "citas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_id\": \"{{servicio_a_id}}\",\n  \"trabajador_id\": null,\n  \"fecha_inicio\": \"{{hueco2}}\",\n  \"cliente\": {\n    \"nombre_completo\": \"Pedro Gil\",\n    \"telefono\": \"+34 699 888 777\",\n    \"email\": \"pedro@cliente.test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema ConfirmacionCita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_ConfirmacionCita\"))));",
+                  "pm.collectionVariables.set(\"cita2_id\", pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-08 · Agenda diaria",
+      "description": "",
+      "item": [
+        {
+          "name": "Agenda del día (admin) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/citas?fecha_desde={{fecha_prueba}}&fecha_hasta={{fecha_prueba}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas"
+              ],
+              "query": [
+                {
+                  "key": "fecha_desde",
+                  "value": "{{fecha_prueba}}"
+                },
+                {
+                  "key": "fecha_hasta",
+                  "value": "{{fecha_prueba}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema CitaLista\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_CitaLista\"))));",
+                  "pm.test(\"Incluye cliente, teléfono, servicio, hora y trabajador\", () => { const a = pm.response.json().data[0]; pm.expect(a.cliente).to.include.keys(\"nombre_completo\",\"telefono\"); pm.expect(a).to.include.keys(\"servicio\",\"trabajador\",\"fecha_inicio\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agenda del trabajador solo propia → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/citas?fecha_desde={{fecha_prueba}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas"
+              ],
+              "query": [
+                {
+                  "key": "fecha_desde",
+                  "value": "{{fecha_prueba}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_worker}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema CitaLista\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_CitaLista\"))));",
+                  "pm.test(\"Solo sus citas\", () => pm.response.json().data.forEach(a => pm.expect(a.trabajador.id).to.eql(pm.collectionVariables.get(\"trabajador_a_id\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marcar atendida → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/citas/{{cita2_id}}/atender",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas",
+                "{{cita2_id}}",
+                "atender"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_worker}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Cita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Cita\"))));",
+                  "pm.test(\"Estado atendida\", () => pm.expect(pm.response.json().data.estado).to.eql(\"atendida\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelar una atendida → 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/citas/{{cita2_id}}/cancelar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas",
+                "{{cita2_id}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error TRANSICION_ESTADO_INVALIDA con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"TRANSICION_ESTADO_INVALIDA\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aislamiento: admin B no ve cita de A → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/citas/{{cita1_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas",
+                "{{cita1_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error NO_ENCONTRADO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"NO_ENCONTRADO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US-09 · Cancelación",
+      "description": "",
+      "item": [
+        {
+          "name": "Token de cancelación erróneo → 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/citas/{{cita1_id}}/cancelar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "citas",
+                "{{cita1_id}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_cancelacion\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error TOKEN_CANCELACION_INVALIDO con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"TOKEN_CANCELACION_INVALIDO\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente cancela → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/citas/{{cita1_id}}/cancelar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "citas",
+                "{{cita1_id}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_cancelacion\": \"{{cita1_token}}\",\n  \"motivo\": \"No puedo ir\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Cita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Cita\"))));",
+                  "pm.test(\"Cancelada por el cliente\", () => { const a = pm.response.json().data; pm.expect(a.estado).to.eql(\"cancelada\"); pm.expect(a.cancelada_por).to.eql(\"cliente\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Hueco liberado vuelve a estar disponible → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/disponibilidad?servicio_id={{servicio_a_id}}&fecha={{fecha_prueba}}&trabajador_id={{trabajador_a_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "disponibilidad"
+              ],
+              "query": [
+                {
+                  "key": "servicio_id",
+                  "value": "{{servicio_a_id}}"
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha_prueba}}"
+                },
+                {
+                  "key": "trabajador_id",
+                  "value": "{{trabajador_a_id}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"hueco1 libre de nuevo\", () => pm.expect(pm.response.json().data.franjas.map(s => s.fecha_inicio)).to.include(pm.collectionVariables.get(\"hueco1\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Re-reserva del hueco liberado → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/publico/negocios/{{slug_a}}/citas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "publico",
+                "negocios",
+                "{{slug_a}}",
+                "citas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"servicio_id\": \"{{servicio_a_id}}\",\n  \"trabajador_id\": \"{{trabajador_a_id}}\",\n  \"fecha_inicio\": \"{{hueco1}}\",\n  \"cliente\": {\n    \"nombre_completo\": \"Pedro Gil\",\n    \"telefono\": \"+34 699 888 777\",\n    \"email\": \"pedro@cliente.test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema ConfirmacionCita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_ConfirmacionCita\"))));",
+                  "pm.collectionVariables.set(\"cita3_id\", pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Local cancela → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/citas/{{cita3_id}}/cancelar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas",
+                "{{cita3_id}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cierre imprevisto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Cumple esquema Cita\", () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get(\"schema_Cita\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelar dos veces → 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/citas/{{cita3_id}}/cancelar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "citas",
+                "{{cita3_id}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Content-Type JSON\", () => pm.response.to.have.header(\"Content-Type\", /application\\/json/));",
+                  "pm.test(\"Error TRANSICION_ESTADO_INVALIDA con formato {code,message,details[]}\", () => { const b = pm.response.json(); pm.expect(b.code).to.eql(\"TRANSICION_ESTADO_INVALIDA\"); pm.expect(b.message).to.be.a(\"string\"); pm.expect(b.details).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limpieza: borrar bloqueo → 204",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bloqueos-horario/{{bloqueo_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bloqueos-horario",
+                "{{bloqueo_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "contrasena",
+      "value": "Demo1234!"
+    },
+    {
+      "key": "slug_a",
+      "value": "peluqueria-demo"
+    },
+    {
+      "key": "tenant_a_id",
+      "value": "a0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "trabajador_a_id",
+      "value": "a0000000-0000-4000-8000-0000000000d1"
+    },
+    {
+      "key": "servicio_a_id",
+      "value": "a0000000-0000-4000-8000-0000000000e1"
+    },
+    {
+      "key": "servicio_a2_id",
+      "value": "a0000000-0000-4000-8000-0000000000e2"
+    },
+    {
+      "key": "servicio_b_id",
+      "value": "b0000000-0000-4000-8000-0000000000e1"
+    },
+    {
+      "key": "fecha_prueba",
+      "value": ""
+    },
+    {
+      "key": "schema_Error",
+      "value": "{\"type\": \"object\", \"required\": [\"code\", \"message\", \"details\"], \"properties\": {\"code\": {\"type\": \"string\"}, \"message\": {\"type\": \"string\"}, \"details\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"issue\"], \"properties\": {\"field\": {\"type\": \"string\"}, \"issue\": {\"type\": \"string\"}, \"message\": {\"type\": \"string\"}}}}, \"trace_id\": {\"type\": \"string\"}}}"
+    },
+    {
+      "key": "schema_TokensSesion",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"token_acceso\", \"token_refresco\", \"tipo_token\", \"expira_en_segundos\", \"usuario\"], \"properties\": {\"token_acceso\": {\"type\": \"string\"}, \"token_refresco\": {\"type\": \"string\"}, \"tipo_token\": {\"type\": \"string\", \"enum\": [\"Bearer\"]}, \"expira_en_segundos\": {\"type\": \"integer\"}, \"usuario\": {\"type\": \"object\", \"required\": [\"id\", \"email\", \"nombre_completo\", \"rol\", \"tenant_id\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"tenant_id\": {\"type\": [\"string\", \"null\"], \"format\": \"uuid\"}, \"email\": {\"type\": \"string\", \"format\": \"email\", \"maxLength\": 254}, \"nombre_completo\": {\"type\": \"string\"}, \"rol\": {\"type\": \"string\", \"enum\": [\"superadmin\", \"admin_negocio\", \"trabajador\", \"cliente\"]}, \"trabajador_id\": {\"type\": [\"string\", \"null\"], \"format\": \"uuid\"}}}}}}}"
+    },
+    {
+      "key": "schema_Usuario",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"id\", \"email\", \"nombre_completo\", \"rol\", \"tenant_id\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"tenant_id\": {\"type\": [\"string\", \"null\"], \"format\": \"uuid\"}, \"email\": {\"type\": \"string\", \"format\": \"email\", \"maxLength\": 254}, \"nombre_completo\": {\"type\": \"string\"}, \"rol\": {\"type\": \"string\", \"enum\": [\"superadmin\", \"admin_negocio\", \"trabajador\", \"cliente\"]}, \"trabajador_id\": {\"type\": [\"string\", \"null\"], \"format\": \"uuid\"}}}}}"
+    },
+    {
+      "key": "schema_Negocio",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"id\", \"slug\", \"nombre\", \"nombre_propietario\", \"email\", \"telefono\", \"zona_horaria\", \"intervalo_minutos\", \"estado\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"slug\": {\"type\": \"string\", \"maxLength\": 60}, \"nombre\": {\"type\": \"string\"}, \"nombre_propietario\": {\"type\": \"string\"}, \"email\": {\"type\": \"string\", \"format\": \"email\", \"maxLength\": 254}, \"telefono\": {\"type\": \"string\"}, \"direccion\": {\"type\": [\"string\", \"null\"]}, \"descripcion\": {\"type\": [\"string\", \"null\"]}, \"url_logo\": {\"type\": [\"string\", \"null\"], \"format\": \"uri\"}, \"zona_horaria\": {\"type\": \"string\"}, \"intervalo_minutos\": {\"type\": \"integer\"}, \"estado\": {\"type\": \"string\", \"enum\": [\"activo\", \"suspendido\", \"baja\"]}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}}"
+    },
+    {
+      "key": "schema_Servicio",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\", \"activo\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"descripcion\": {\"type\": [\"string\", \"null\"]}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}, \"activo\": {\"type\": \"boolean\"}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}}"
+    },
+    {
+      "key": "schema_ServicioLista",
+      "value": "{\"type\": \"object\", \"required\": [\"data\", \"meta\"], \"properties\": {\"data\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\", \"activo\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"descripcion\": {\"type\": [\"string\", \"null\"]}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}, \"activo\": {\"type\": \"boolean\"}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}, \"meta\": {\"type\": \"object\", \"required\": [\"total\", \"page\", \"limit\", \"total_pages\"], \"properties\": {\"total\": {\"type\": \"integer\", \"minimum\": 0}, \"page\": {\"type\": \"integer\", \"minimum\": 1}, \"limit\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 100}, \"total_pages\": {\"type\": \"integer\", \"minimum\": 0}}}}}"
+    },
+    {
+      "key": "schema_Trabajador",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_visible\", \"activo\", \"tiene_acceso\", \"servicios\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_visible\": {\"type\": \"string\"}, \"email\": {\"type\": [\"string\", \"null\"], \"format\": \"email\"}, \"telefono\": {\"type\": [\"string\", \"null\"]}, \"activo\": {\"type\": \"boolean\"}, \"tiene_acceso\": {\"type\": \"boolean\"}, \"servicios\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}}}}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}}"
+    },
+    {
+      "key": "schema_Disponibilidad",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"fecha\", \"zona_horaria\", \"servicio_id\", \"duracion_minutos\", \"franjas\"], \"properties\": {\"fecha\": {\"type\": \"string\", \"format\": \"date\"}, \"zona_horaria\": {\"type\": \"string\"}, \"servicio_id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"duracion_minutos\": {\"type\": \"integer\"}, \"franjas\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"fecha_inicio\", \"fecha_fin\", \"trabajador_ids\"], \"properties\": {\"fecha_inicio\": {\"type\": \"string\", \"format\": \"date-time\"}, \"fecha_fin\": {\"type\": \"string\", \"format\": \"date-time\"}, \"trabajador_ids\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\", \"format\": \"uuid\"}}}}}}}}}"
+    },
+    {
+      "key": "schema_NegocioPublico",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"slug\", \"nombre\", \"zona_horaria\", \"servicios\", \"trabajador\"], \"properties\": {\"slug\": {\"type\": \"string\", \"maxLength\": 60}, \"nombre\": {\"type\": \"string\"}, \"telefono\": {\"type\": \"string\"}, \"direccion\": {\"type\": [\"string\", \"null\"]}, \"descripcion\": {\"type\": [\"string\", \"null\"]}, \"url_logo\": {\"type\": [\"string\", \"null\"], \"format\": \"uri\"}, \"zona_horaria\": {\"type\": \"string\"}, \"servicios\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}}}}, \"trabajadores\": {\"type\": \"array\", \"items\": {\"allOf\": [{\"type\": \"object\", \"required\": [\"id\", \"nombre_visible\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_visible\": {\"type\": \"string\"}}}, {\"type\": \"object\", \"properties\": {\"servicio_ids\": {\"type\": \"array\", \"items\": {\"type\": \"string\", \"format\": \"uuid\"}}}}]}}}}}}"
+    },
+    {
+      "key": "schema_ConfirmacionCita",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"allOf\": [{\"type\": \"object\", \"required\": [\"id\", \"estado\", \"fecha_inicio\", \"fecha_fin\", \"precio\", \"servicio\", \"trabajador\", \"cliente\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"estado\": {\"type\": \"string\", \"enum\": [\"pendiente\", \"atendida\", \"cancelada\"]}, \"fecha_inicio\": {\"type\": \"string\", \"format\": \"date-time\"}, \"fecha_fin\": {\"type\": \"string\", \"format\": \"date-time\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"notas\": {\"type\": [\"string\", \"null\"]}, \"servicio\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}}}, \"trabajador\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_visible\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_visible\": {\"type\": \"string\"}}}, \"cliente\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_completo\", \"telefono\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_completo\": {\"type\": \"string\"}, \"telefono\": {\"type\": \"string\"}, \"email\": {\"type\": \"string\", \"format\": \"email\"}}}, \"cancelada_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"cancelada_por\": {\"type\": [\"string\", \"null\"], \"enum\": [\"cliente\", \"local\", null]}, \"motivo_cancelacion\": {\"type\": [\"string\", \"null\"]}, \"atendida_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}, {\"type\": \"object\", \"required\": [\"token_cancelacion\"], \"properties\": {\"token_cancelacion\": {\"type\": \"string\"}}}]}}}"
+    },
+    {
+      "key": "schema_Cita",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"object\", \"required\": [\"id\", \"estado\", \"fecha_inicio\", \"fecha_fin\", \"precio\", \"servicio\", \"trabajador\", \"cliente\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"estado\": {\"type\": \"string\", \"enum\": [\"pendiente\", \"atendida\", \"cancelada\"]}, \"fecha_inicio\": {\"type\": \"string\", \"format\": \"date-time\"}, \"fecha_fin\": {\"type\": \"string\", \"format\": \"date-time\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"notas\": {\"type\": [\"string\", \"null\"]}, \"servicio\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}}}, \"trabajador\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_visible\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_visible\": {\"type\": \"string\"}}}, \"cliente\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_completo\", \"telefono\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_completo\": {\"type\": \"string\"}, \"telefono\": {\"type\": \"string\"}, \"email\": {\"type\": \"string\", \"format\": \"email\"}}}, \"cancelada_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"cancelada_por\": {\"type\": [\"string\", \"null\"], \"enum\": [\"cliente\", \"local\", null]}, \"motivo_cancelacion\": {\"type\": [\"string\", \"null\"]}, \"atendida_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}}"
+    },
+    {
+      "key": "schema_CitaLista",
+      "value": "{\"type\": \"object\", \"required\": [\"data\", \"meta\"], \"properties\": {\"data\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"id\", \"estado\", \"fecha_inicio\", \"fecha_fin\", \"precio\", \"servicio\", \"trabajador\", \"cliente\", \"creado_en\", \"actualizado_en\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"estado\": {\"type\": \"string\", \"enum\": [\"pendiente\", \"atendida\", \"cancelada\"]}, \"fecha_inicio\": {\"type\": \"string\", \"format\": \"date-time\"}, \"fecha_fin\": {\"type\": \"string\", \"format\": \"date-time\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"notas\": {\"type\": [\"string\", \"null\"]}, \"servicio\": {\"type\": \"object\", \"required\": [\"id\", \"nombre\", \"precio\", \"duracion_minutos\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre\": {\"type\": \"string\"}, \"precio\": {\"type\": \"number\", \"minimum\": 0}, \"duracion_minutos\": {\"type\": \"integer\"}}}, \"trabajador\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_visible\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_visible\": {\"type\": \"string\"}}}, \"cliente\": {\"type\": \"object\", \"required\": [\"id\", \"nombre_completo\", \"telefono\"], \"properties\": {\"id\": {\"type\": \"string\", \"format\": \"uuid\"}, \"nombre_completo\": {\"type\": \"string\"}, \"telefono\": {\"type\": \"string\"}, \"email\": {\"type\": \"string\", \"format\": \"email\"}}}, \"cancelada_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"cancelada_por\": {\"type\": [\"string\", \"null\"], \"enum\": [\"cliente\", \"local\", null]}, \"motivo_cancelacion\": {\"type\": [\"string\", \"null\"]}, \"atendida_en\": {\"type\": [\"string\", \"null\"], \"format\": \"date-time\"}, \"creado_en\": {\"type\": \"string\", \"format\": \"date-time\"}, \"actualizado_en\": {\"type\": \"string\", \"format\": \"date-time\"}}}}, \"meta\": {\"type\": \"object\", \"required\": [\"total\", \"page\", \"limit\", \"total_pages\"], \"properties\": {\"total\": {\"type\": \"integer\", \"minimum\": 0}, \"page\": {\"type\": \"integer\", \"minimum\": 1}, \"limit\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 100}, \"total_pages\": {\"type\": \"integer\", \"minimum\": 0}}}}}"
+    },
+    {
+      "key": "schema_FranjasSemanales",
+      "value": "{\"type\": \"object\", \"required\": [\"data\"], \"properties\": {\"data\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"dia_semana\", \"hora_inicio\", \"hora_fin\"], \"additionalProperties\": false, \"properties\": {\"dia_semana\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 7}, \"hora_inicio\": {\"type\": \"string\"}, \"hora_fin\": {\"type\": \"string\"}}}}}}"
+    }
+  ]
+}
