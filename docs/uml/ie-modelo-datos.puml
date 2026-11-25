@@ -1,0 +1,149 @@
+@startuml
+title BookFlow · Diagrama IE (modelo relacional, PostgreSQL)\nTodas las tablas de negocio llevan tenant_id → tenants (aislamiento multiempresa, RNF-01)
+hide circle
+skinparam linetype polyline
+skinparam nodesep 60
+skinparam ranksep 70
+
+entity "tenants" as tenants {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(120)
+  * slug : VARCHAR(80) <<UNIQUE>>
+  * owner_name : VARCHAR(120)
+  * phone : VARCHAR(20)
+  address : VARCHAR(200)
+  logo_url : VARCHAR(255)
+  description : TEXT
+  * timezone : VARCHAR(40)
+  * plan : VARCHAR(20)
+  * status : VARCHAR(20) {ACTIVO, SUSPENDIDO}
+  * created_at : TIMESTAMPTZ
+}
+
+entity "users" as users {
+  * id : SERIAL <<PK>>
+  --
+  tenant_id : UUID <<FK>> (NULL = SuperAdmin)
+  * email : VARCHAR(160) <<UNIQUE>>
+  * password_hash : VARCHAR(100) (bcrypt)
+  * name : VARCHAR(120)
+  * role : VARCHAR(20)
+    {SUPERADMIN, BUSINESS_ADMIN,
+     TRABAJADOR, CLIENTE}
+  * active : BOOLEAN
+  * created_at : TIMESTAMPTZ
+}
+
+entity "staff_members" as staff {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  user_id : INT <<FK>> <<UNIQUE>> (NULL = sin acceso)
+  * display_name : VARCHAR(80)
+  * active : BOOLEAN
+}
+
+entity "services" as services {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  * name : VARCHAR(100)
+  * price : NUMERIC(8,2) CHECK ≥ 0
+  * duration_minutes : SMALLINT CHECK > 0
+  * active : BOOLEAN
+}
+
+entity "staff_services" as staff_services {
+  * staff_id : INT <<PK, FK>>
+  * service_id : INT <<PK, FK>>
+  --
+  * tenant_id : UUID <<FK>>
+}
+
+entity "schedules" as schedules {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  staff_id : INT <<FK>> (NULL = horario del local)
+  * weekday : SMALLINT (1 = lunes … 7)
+  * start_time : TIME
+  * end_time : TIME CHECK > start_time
+}
+
+entity "schedule_exceptions" as exceptions {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  staff_id : INT <<FK>> (NULL = todo el local)
+  * type : VARCHAR(20) {FESTIVO, PAUSA, VACACIONES}
+  * starts_at : TIMESTAMPTZ
+  * ends_at : TIMESTAMPTZ
+  reason : VARCHAR(160)
+}
+
+entity "customers" as customers {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  user_id : INT <<FK>> (NULL = reserva sin cuenta)
+  * name : VARCHAR(120)
+  * phone : VARCHAR(20)
+  email : VARCHAR(160)
+  UNIQUE (tenant_id, phone)
+}
+
+entity "appointments" as appointments {
+  * id : SERIAL <<PK>>
+  --
+  * tenant_id : UUID <<FK>>
+  * service_id : INT <<FK>>
+  * staff_id : INT <<FK>>
+  * customer_id : INT <<FK>>
+  * start_at : TIMESTAMPTZ
+  * end_at : TIMESTAMPTZ
+  * price : NUMERIC(8,2) (precio en el momento)
+  * status : VARCHAR(20)
+    {PENDIENTE, ATENDIDA, CANCELADA}
+  * cancel_token : VARCHAR(32) <<UNIQUE>>
+  cancelled_by : VARCHAR(20) {CLIENTE, LOCAL}
+  cancelled_at : TIMESTAMPTZ
+  cancel_reason : VARCHAR(160)
+  notes : VARCHAR(255)
+  * created_at : TIMESTAMPTZ
+}
+
+tenants ||--o{ users
+tenants ||--o{ staff
+tenants ||--o{ services
+tenants ||--o{ schedules
+tenants ||--o{ exceptions
+tenants ||--o{ customers
+tenants ||--o{ appointments
+
+users |o--o| staff : "1:1 acceso"
+users |o--o{ customers : "cuenta"
+
+staff ||--o{ staff_services : ""
+services ||--o{ staff_services : ""
+staff |o--o{ schedules : "turno"
+staff |o--o{ exceptions : "bloqueos"
+
+services ||--o{ appointments : "se reserva"
+staff ||--o{ appointments : "realiza"
+customers ||--o{ appointments : "pide"
+
+note right of staff_services
+  Tabla intermedia de la
+  relación N:M
+  staff_members ↔ services (US-04)
+end note
+
+note left of appointments
+  RNF-04 · evita citas dobles:
+  EXCLUDE USING gist (staff_id WITH =,
+    tstzrange(start_at, end_at) WITH &&)
+  WHERE (status <> 'CANCELADA')
+  Índice (tenant_id, start_at) para la agenda (US-08)
+end note
+@enduml

@@ -1,0 +1,16 @@
+@startjson
+title Formato común de error · 409 Conflict al reservar un hueco ocupado (US-07, RF-09)
+#highlight "error" / "code"
+{
+  "error": {
+    "status": 409,
+    "code": "SLOT_TAKEN",
+    "message": "Esa hora acaba de reservarse. Elige otra franja.",
+    "details": [
+      { "field": "startAt", "issue": "overlaps_existing_appointment" }
+    ],
+    "path": "/api/appointments",
+    "timestamp": "2026-11-28T18:42:10+01:00"
+  }
+}
+@endjson

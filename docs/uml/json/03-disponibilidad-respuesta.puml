@@ -1,0 +1,22 @@
+@startjson
+title GET /api/public/{slug}/availability?serviceId=3&staffId=any&date=2026-12-02 · Respuesta 200 (US-06)
+#highlight "slots"
+{
+  "date": "2026-12-02",
+  "tenantSlug": "peluqueria-ana",
+  "service": {
+    "id": 3,
+    "name": "Corte de pelo",
+    "durationMinutes": 30,
+    "price": 15.00
+  },
+  "staffFilter": "any",
+  "slotStepMinutes": 15,
+  "slots": [
+    { "start": "2026-12-02T10:00:00+01:00", "end": "2026-12-02T10:30:00+01:00", "staffId": 4, "staffName": "Ana" },
+    { "start": "2026-12-02T10:15:00+01:00", "end": "2026-12-02T10:45:00+01:00", "staffId": 5, "staffName": "Luis" },
+    { "start": "2026-12-02T16:30:00+01:00", "end": "2026-12-02T17:00:00+01:00", "staffId": 4, "staffName": "Ana" }
+  ],
+  "nextAvailableDate": null
+}
+@endjson

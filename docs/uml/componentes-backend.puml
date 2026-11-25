@@ -1,0 +1,73 @@
+@startuml
+title BookFlow · Diagrama de componentes del BackEnd (API REST)
+skinparam componentStyle uml2
+
+interface "REST API\nHTTP/JSON" as IREST
+interface "Eventos en\ntiempo real (WS)" as IWS
+
+package "BackEnd · Node.js + Express (contenedor Docker)" {
+  package "Capa HTTP" {
+    [Express App\n(app.js)] as APP
+    [Routers\n/api/auth · /api/tenants · /api/services\n/api/staff · /api/schedules · /api/agenda\n/api/appointments · /api/public · /api/admin] as ROUTERS
+    [authMiddleware\n(verifica JWT)] as MW_AUTH
+    [roleGuard\n(SUPERADMIN, BUSINESS_ADMIN,\nTRABAJADOR, CLIENTE)] as MW_ROLE
+    [tenantScope\n(inyecta tenant_id)] as MW_TENANT
+    [validator\n(esquemas de entrada)] as MW_VAL
+    [errorHandler\n(400/401/403/404/409/500)] as MW_ERR
+  }
+
+  package "Módulos de negocio" {
+    [AuthService\n(bcrypt + JWT)] as S_AUTH
+    [TenantService\n(alta multiempresa)] as S_TEN
+    [CatalogService\n(servicios y personal)] as S_CAT
+    [ScheduleService\n(horarios y bloqueos)] as S_SCH
+    [AvailabilityService\n(motor de huecos libres)] as S_AV
+    [AppointmentService\n(reservas transaccionales,\nestado y cancelación)] as S_APP
+    [PlatformAdminService\n(SuperAdmin)] as S_ADM
+  }
+
+  package "Acceso a datos" {
+    [Repositorios\n(TenantRepo, UserRepo, ServiceRepo,\nStaffRepo, ScheduleRepo,\nCustomerRepo, AppointmentRepo)] as REPO
+    [Pool / ORM\n(transacciones,\nSELECT … FOR UPDATE)] as ORM
+  }
+
+  [Notificador\n(Socket.IO, sala por tenant)] as NOTIF
+}
+
+database "PostgreSQL\n(contenedor Docker)" as DB
+
+APP -( IREST : <<provee>>
+IREST - APP
+NOTIF - IWS
+
+APP --> MW_AUTH
+APP --> ROUTERS
+APP --> MW_ERR
+ROUTERS --> MW_VAL
+ROUTERS --> MW_ROLE
+MW_ROLE ..> MW_AUTH
+MW_AUTH --> MW_TENANT
+
+ROUTERS --> S_AUTH
+ROUTERS --> S_TEN
+ROUTERS --> S_CAT
+ROUTERS --> S_SCH
+ROUTERS --> S_AV
+ROUTERS --> S_APP
+ROUTERS --> S_ADM
+
+S_TEN ..> S_AUTH : hash + token
+S_AV ..> S_SCH : turnos y bloqueos
+S_APP ..> S_AV : re-valida franja
+S_APP ..> NOTIF : appointment:created\nappointment:cancelled
+
+S_AUTH --> REPO
+S_TEN --> REPO
+S_CAT --> REPO
+S_SCH --> REPO
+S_AV --> REPO
+S_APP --> REPO
+S_ADM --> REPO
+REPO --> ORM
+ORM --> DB : SQL (filtro tenant_id\nobligatorio, RNF-01)
+@enduml

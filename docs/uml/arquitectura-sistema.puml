@@ -1,0 +1,32 @@
+@startuml
+title BookFlow · Arquitectura del sistema (FrontEnd ↔ BackEnd)
+skinparam componentStyle uml2
+
+actor "Cliente\n(navegador móvil)" as CL
+actor "Personal / SuperAdmin\n(navegador)" as ST
+
+node "Red Docker aislada (RNF-05)" {
+  node "Contenedor web (Nginx)" {
+    [SPA BookFlow\n(React, ficheros estáticos)] as SPA
+    [Proxy inverso\n/api y /socket.io → backend] as PROXY
+  }
+  node "Contenedor backend (Node.js)" {
+    [API REST (Express)] as API
+    [Notificador Socket.IO] as WS
+    [Módulos de negocio] as BIZ
+    [Repositorios /\nacceso a datos] as DAL
+  }
+  database "Contenedor BD\nPostgreSQL" as DB
+}
+
+CL --> SPA : HTTPS
+ST --> SPA : HTTPS
+SPA --> PROXY : REST /api (JSON)\nBearer JWT
+SPA --> PROXY : WebSocket
+PROXY --> API : HTTP :3000
+PROXY --> WS : WS :3000
+API --> BIZ
+BIZ ..> WS : publica eventos\n(sala por tenant)
+BIZ --> DAL
+DAL --> DB : SQL · TCP 5432
+@enduml

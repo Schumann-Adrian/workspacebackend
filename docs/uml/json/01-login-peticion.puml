@@ -1,0 +1,7 @@
+@startjson
+title POST /api/auth/login · Petición (US-02)
+{
+  "email": "ana@peluqueria-ana.es",
+  "password": "********"
+}
+@endjson
